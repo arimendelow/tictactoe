@@ -51,7 +51,7 @@ function Square(props) {
 	}
   }
   
-  class Game extends React.Component {
+class Game extends React.Component {
 	// Game will keep track of the state of the game and fully control it
 	// the constructor goes in the class that tracks the game's state
 	constructor(props) {
@@ -60,80 +60,101 @@ function Square(props) {
 		history: [{
 		  squares: Array(9).fill(null),
 		}],
+		stepNumber: 0, // indicate which step we're currently viewing
 		xIsNext: true, // for tracking whose turn it is (x or o) 
 	  };
 	}
 	
 	handleClick(i) {
-	  const history = this.state.history;
-	  const current = history[history.length - 1];
-	  /*
-		  Call '.slice()' to create a copy of the squares array, and modify that instead of modifying the existing array.
-		  Generally two ways to modify data:
-		  - Mutate the data by directly changing its values
-		  - Replace the data with a new copy that has the desired changes
-		  There are several reasons to follow the second method, called immutability, a couple of which are that it makes it easier to
-		  undo changes as well as identify changes to the data.
-		  Being able to identify changes is the main benefit of immutability: it helps us build pure components in React. We can easily
-		  determine when a component requires re-rendering. Look more into shouldComponentUpdate() for building pure components to optimize performance.
-	  */
-	  const squares = current.squares.slice();
-	  // If someone's already won OR the square has already been filled, return early, effectively stopping the player from going
-	  if (calculateWinner(squares) || squares[i]) {
-		return;
-	  }
-	  squares[i] = this.state.xIsNext ? 'X' : 'O';
-	  this.setState({
-		// Unlike push(), concat() doesn't mutate the original array
-		history: history.concat([{
-		  squares: squares,
-		}]),
-		xIsNext: !this.state.xIsNext, // Flips the boolean so that users can take turns
-	  });
+		// Slice() here makes sure that if we go back in time and make a new move, we throw away all the "future" history
+		// that is now incorrect.
+		const history = this.state.history.slice(0, this.state.stepNumber + 1);
+	  	const current = history[history.length - 1];
+		/*
+			Call '.slice()' to create a copy of the squares array, and modify that instead of modifying the existing array.
+			Generally two ways to modify data:
+			- Mutate the data by directly changing its values
+			- Replace the data with a new copy that has the desired changes
+			There are several reasons to follow the second method, called immutability, a couple of which are that it makes it easier to
+			undo changes as well as identify changes to the data.
+			Being able to identify changes is the main benefit of immutability: it helps us build pure components in React. We can easily
+			determine when a component requires re-rendering. Look more into shouldComponentUpdate() for building pure components to optimize performance.
+		*/
+	  	const squares = current.squares.slice();
+		// If someone's already won OR the square has already been filled, return early, effectively stopping the player from going
+		if (calculateWinner(squares) || squares[i]) {
+			return;
+		}
+		squares[i] = this.state.xIsNext ? 'X' : 'O';
+		this.setState({
+			// Unlike push(), concat() doesn't mutate the original array
+			history: history.concat([{
+				squares: squares,
+			}]),
+			stepNumber: history.length,
+			xIsNext: !this.state.xIsNext, // Flips the boolean so that users can take turns
+		});
 	}
-	
+
+	// Method for jumping to a given step
+	jumpTo(step) {
+		this.setState({
+			stepNumber: step,
+			xIsNext: (step % 2) === 0,
+		});
+	}
+
 	render() {
-	  // Use the most recent history entry to determine and display the game's status
-	  const history = this.state.history;
-	  const current = history[history.length - 1];
-	  const winner = calculateWinner(current.squares);
-	  
-	  // map our history of moves to React elements representing buttons on the screen, and siaply a list of buttons to "jump" to past moves
-	  const moves = history.map((step, move) => {
-		const desc = move ? // 0 evaluates to false
-			  'Go to move #' + move :
-			  'Go to game start';
+		// Use the most recent history entry to determine and display the game's status
+		const history = this.state.history;
+		const current = history[this.state.stepNumber];
+		const winner = calculateWinner(current.squares);
+		
+		// map our history of moves to React elements representing buttons on the screen, and siaply a list of buttons to "jump" to past moves
+		const moves = history.map((step, move) => {
+			const desc = move ? // 0 evaluates to false
+				'Go to move #' + move :
+				'Go to game start';
+			return (
+			/*
+				list of buttons - need a key. key is a special and reserved property in React.
+				When an element is created, React extracts the key property and stores the key directly on the returned element.
+				Even though key may look like it belongs in props, key cannot be referenced using this.props.key.
+				React automatically uses key to decide which components to update. A component cannot inquire about its key.
+				Keys do not need to be globally unique, only unique between components and their siblings.
+				
+				In tic tac toe's game history, each past move has a unique ID associated with it: the sequential number of the move.
+				Because the moves are never re-ordered, deleted, or inserted in the middle, it's safe to use the move index as the key:
+			*/
+			<li key={move}>
+				<button onClick={() => this.jumpTo(move)}>{desc}</button>
+			</li>
+			);
+		});
+
+		// Set the status - check if someone's already won, and if not, state whose turn it is
+		let status;
+		if (winner) {
+			status = winner + ' wins!!!';
+		} else {
+			status = (this.state.xIsNext ? 'X' : 'O') + "'s turn!";
+		}
 		return (
-		  // list of buttons
-		  <li>
-			  <button onClick={() => this.jumpTo(move)}>{desc}</button>
-		  </li>
+			<div className="game">
+			<div className="game-board">
+				<Board
+				squares={current.squares}
+				onClick={(i) => this.handleClick(i)}
+				/>
+			</div>
+			<div className="game-info">
+				<div>{status}</div>
+				<ol>{moves}</ol>
+			</div>
+			</div>
 		);
-	  });
-	  
-	  // Set the status - check if someone's already won, and if not, state whose turn it is
-	  let status;
-	  if (winner) {
-		status = winner + ' wins!!!';
-	  } else {
-		status = (this.state.xIsNext ? 'X' : 'O') + "'s turn!";
-	  }
-	  return (
-		<div className="game">
-		  <div className="game-board">
-			<Board
-			  squares={current.squares}
-			  onClick={(i) => this.handleClick(i)}
-			/>
-		  </div>
-		  <div className="game-info">
-			<div>{status}</div>
-			<ol>{moves}</ol>
-		  </div>
-		</div>
-	  );
 	}
-  }
+}
   
   // ========================================
   
